@@ -5,6 +5,7 @@ const morgan = require("morgan");
 const fs = require("fs");
 const https = require("https"); //for ssl certification
 const cors = require("cors"); //for setting origins which can access our resource
+const rateLimit = require("express-rate-limit"); 
 
 const app = express();
 const port = 3000;
@@ -18,6 +19,14 @@ const options = {
     key: fs.readFileSync("server.key"),
     cert: fs.readFileSync("server.cert"),
 };
+
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, 
+    max: 10, 
+    message: "Too many requests, please try again later.",
+  });
+app.use(limiter);
+
 
 // MongoDB Connection
 const mongoURI = "mongodb://localhost:27017"; // Change this if using a different DB server
@@ -122,3 +131,7 @@ http.createServer((req, res) => {
 https.createServer(options, app).listen(port, () => {
   console.log(`Secure server is running on https://localhost:${port}`);
 });
+
+
+
+
