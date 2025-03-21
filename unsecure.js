@@ -2,10 +2,17 @@ const express = require("express");
 const { MongoClient, ObjectId } = require("mongodb");
 const morgan = require("morgan");
 
+const http = require('http')
 const fs = require("fs");
 const https = require("https"); //for ssl certification
 const cors = require("cors"); //for setting origins which can access our resource
 const rateLimit = require("express-rate-limit"); 
+
+const session = require("express-session");
+const passport = require("passport");
+const GoogleStrategy = require("passport-google-oauth20").Strategy;
+require("dotenv").config();
+console.log(process.env.GOOGLE_CLIENT_ID)
 
 const app = express();
 const port = 3000;
@@ -39,6 +46,56 @@ MongoClient.connect(mongoURI)
     console.log("Connected to MongoDB");
   })
   .catch((err) => console.error("MongoDB Connection Error:", err));
+
+//OAuth2 Configuration
+// Session configuration
+app.use(session({
+  secret: "your_secret_key",
+  resave: false,
+  saveUninitialized: true,
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Passport Google OAuth Strategy
+passport.use(new GoogleStrategy({
+  clientID: process.env.GOOGLE_CLIENT_ID, 
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  callbackURL: "https://localhost:3000/google/callback"
+},
+async (accessToken, refreshToken, profile, done) => {
+  try {
+      return done(null, user);
+  } catch (err) {
+      return done(err);
+  }
+}));
+
+passport.serializeUser((user, done) => {
+  done(null, user);
+});
+
+passport.deserializeUser(async (id, done) => {
+  try {
+      done(null, user);
+  } catch (err) {
+      done(err);
+  }
+});
+
+// Routes for Google Authentication
+app.get("/",
+  passport.authenticate("google", { scope: ["profile", "email"] })
+);
+
+app.get("/google/callback",
+  passport.authenticate("google", { failureRedirect: "/" }),
+  (req, res) => {
+      res.redirect("/api/items");
+  }
+);
+
 
 function validateInput(name) { //function to validate input
     if (typeof name !== "string" || name.trim().length === 0) {
@@ -131,7 +188,5 @@ http.createServer((req, res) => {
 https.createServer(options, app).listen(port, () => {
   console.log(`Secure server is running on https://localhost:${port}`);
 });
-
-
 
 
