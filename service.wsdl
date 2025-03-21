@@ -1,0 +1,42 @@
+<definitions name="SecureService"
+  targetNamespace="http://example.com/secure"
+  xmlns="http://schemas.xmlsoap.org/wsdl/"
+  xmlns:tns="http://example.com/secure"
+  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+  xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  
+  <message name="SayHelloRequest">
+    <part name="name" type="xsd:string"/>
+  </message>
+
+  <message name="SayHelloResponse">
+    <part name="message" type="xsd:string"/>
+  </message>
+
+  <portType name="SecurePortType">
+    <operation name="sayHello">
+      <input message="tns:SayHelloRequest"/>
+      <output message="tns:SayHelloResponse"/>
+    </operation>
+  </portType>
+
+  <binding name="SecureBinding" type="tns:SecurePortType">
+    <soap:binding style="rpc" transport="http://schemas.xmlsoap.org/soap/http"/>
+    <operation name="sayHello">
+      <soap:operation soapAction="http://example.com/secure/sayHello"/>
+      <input>
+        <soap:body use="literal"/>
+      </input>
+      <output>
+        <soap:body use="literal"/>
+      </output>
+    </operation>
+  </binding>
+
+  <service name="SecureService">
+    <port name="SecurePort" binding="tns:SecureBinding">
+      <soap:address location="http://localhost:8000/wsdl"/>
+    </port>
+  </service>
+
+</definitions>
