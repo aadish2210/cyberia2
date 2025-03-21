@@ -11,6 +11,8 @@ const rateLimit = require("express-rate-limit");
 const session = require("express-session");
 const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcryptjs");
 require("dotenv").config();
 console.log(process.env.GOOGLE_CLIENT_ID)
 
@@ -49,48 +51,112 @@ MongoClient.connect(mongoURI)
 
 //OAuth2 Configuration
 // Session configuration
-app.use(session({
-  secret: "your_secret_key",
-  resave: false,
-  saveUninitialized: true,
-}));
+// app.use(session({
+//   secret: "your_secret_key",
+//   resave: false,
+//   saveUninitialized: true,
+// }));
 
-app.use(passport.initialize());
-app.use(passport.session());
+// app.use(passport.initialize());
+// app.use(passport.session());
 
 // Passport Google OAuth Strategy
-passport.use(new GoogleStrategy({
-  clientID: process.env.GOOGLE_CLIENT_ID, 
-  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  callbackURL: "https://localhost:3000/google/callback"
-},
-async (accessToken, refreshToken, profile, done) => {
-  try {
-      return done(null, profile);
-  } catch (err) {
-      return done(err);
-  }
-}));
+// passport.use(new GoogleStrategy({
+//   clientID: process.env.GOOGLE_CLIENT_ID, 
+//   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+//   callbackURL: "https://localhost:3000/google/callback"
+// },
+// async (accessToken, refreshToken, profile, done) => {
+//   try {
+//       return done(null, profile);
+//   } catch (err) {
+//       return done(err);
+//   }
+// }));
 
-passport.serializeUser((user, done) => {
-  done(null, user);
+// passport.serializeUser((user, done) => {
+//   done(null, user);
+// });
+
+// passport.deserializeUser((user,done)=>{
+//   done(null,user)
+// });
+
+// // Routes for Google Authentication
+// app.get("/",
+//   passport.authenticate("google", { scope: ["profile", "email"] })
+// );
+
+// app.get("/google/callback",
+//   passport.authenticate("google", { failureRedirect: "/" }),
+//   (req, res) => {
+//       res.redirect("/api/items");
+//   }
+// );
+
+// Role-Based Middleware
+const authenticateToken = (req, res, next) => {
+    const token = req.header("Authorization");
+    if (!token) return res.status(401).json({ error: "Access denied" });
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = decoded;
+        next();
+    } catch (err) {
+        res.status(403).json({ error: "Invalid token" });
+    }
+};
+
+const authorizeRole = (roles) => {
+    return (req, res, next) => {
+        if (!roles.includes(req.user.role)) {
+            return res.status(403).json({ error: "Forbidden: You do not have access" });
+        }
+        next();
+    };
+};
+
+// User Signup
+app.post("/signup", async (req, res) => {
+    const { email, password, role } = req.body;
+    if (!email || !password) return res.status(400).json({ error: "Email and password required" });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = { email, password: hashedPassword, role: role || "user" };
+
+    await db.collection("users").insertOne(newUser);
+    res.json({ message: "User registered successfully" });
 });
 
-passport.deserializeUser((user,done)=>{
-  done(null,user)
+// User Login
+app.post("/login", async (req, res) => {
+    const { email, password } = req.body;
+    const user = await db.collection("users").findOne({ email });
+    
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+        return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: "1h" });
+    res.json({ token });
 });
 
-// Routes for Google Authentication
-app.get("/",
-  passport.authenticate("google", { scope: ["profile", "email"] })
-);
+// Protected Route (Only for Admins)
+app.get("/admin", authenticateToken, authorizeRole(["admin"]), (req, res) => {
+    res.json({ message: "Welcome, Admin!" });
+});
 
-app.get("/google/callback",
-  passport.authenticate("google", { failureRedirect: "/" }),
-  (req, res) => {
-      res.redirect("/api/items");
-  }
-);
+// Public Route (For All)
+app.get("/public", (req, res) => {
+    res.json({ message: "Public Content" });
+});
+
+// Secure Profile Route (Logged-in Users)
+app.get("/profile", authenticateToken, (req, res) => {
+    res.json({ user: req.user });
+});
+
 
 
 function validateInput(name) { //function to validate input
