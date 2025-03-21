@@ -66,7 +66,7 @@ passport.use(new GoogleStrategy({
 },
 async (accessToken, refreshToken, profile, done) => {
   try {
-      return done(null, user);
+      return done(null, profile);
   } catch (err) {
       return done(err);
   }
@@ -76,12 +76,8 @@ passport.serializeUser((user, done) => {
   done(null, user);
 });
 
-passport.deserializeUser(async (id, done) => {
-  try {
-      done(null, user);
-  } catch (err) {
-      done(err);
-  }
+passport.deserializeUser((user,done)=>{
+  done(null,user)
 });
 
 // Routes for Google Authentication
